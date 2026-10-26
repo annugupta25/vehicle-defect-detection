@@ -2,6 +2,7 @@
 
 Produces visual explanations for CNN decisions by computing gradients of the
 predicted class score with respect to feature maps of the final convolutional layer.
+Supports both custom CNNs and nested transfer learning backbones (e.g. MobileNetV2).
 """
 
 from typing import Optional, Tuple
@@ -14,17 +15,19 @@ from tensorflow import keras
 def find_last_conv_layer(model: keras.Model) -> str:
     """Finds the name of the last 2D Convolutional layer in a Keras model.
 
+    Searches backwards through top-level layers and any nested Functional submodels.
+
     Args:
         model: Keras Model instance.
 
     Returns:
-        str: Name of the last Conv2D layer.
+        str: Name of the last Conv2D layer found.
     """
+    # 1. Search top-level layers in reverse
     for layer in reversed(model.layers):
-        # Check direct Conv2D layer
         if isinstance(layer, keras.layers.Conv2D):
             return layer.name
-        # If model has nested layers (e.g., Transfer Learning Functional submodels)
+        # 2. Search inside nested submodels (e.g., MobileNetV2 functional block)
         if hasattr(layer, "layers"):
             for sublayer in reversed(layer.layers):
                 if isinstance(sublayer, keras.layers.Conv2D):
@@ -37,66 +40,109 @@ def make_gradcam_heatmap(
     img_array: np.ndarray,
     model: keras.Model,
     last_conv_layer_name: Optional[str] = None,
+    pred_index: Optional[int] = None,
 ) -> np.ndarray:
     """Generates a Grad-CAM heatmap for a single image array.
 
+    Compatible with both standard sequential/functional CNNs and models with
+    nested pretrained functional backbones (e.g., MobileNetV2).
+
     Args:
-        img_array: Batch tensor of shape (1, height, width, channels), scaled as expected by model.
+        img_array: Input tensor of shape (1, height, width, 3).
         model: Trained Keras model.
-        last_conv_layer_name: Optional name of target Conv layer. If None, automatically detected.
+        last_conv_layer_name: Name of target Conv layer. If None, auto-detected.
+        pred_index: Target class index to explain (0: Defective, 1: OK).
+                    If None, explains the predicted class.
 
     Returns:
-        np.ndarray: 2D numpy array with values in [0, 1] representing activation intensity.
+        np.ndarray: 2D numpy array [0, 1] representing activation heatmap.
     """
     if last_conv_layer_name is None:
         last_conv_layer_name = find_last_conv_layer(model)
 
-    # Build a submodel that outputs both the target conv feature maps and the final predictions
+    # Check if target layer is a top-level layer or inside a nested submodel
+    is_nested = False
+    nested_layer = None
+    nested_idx = -1
+
     try:
-        last_conv_layer = model.get_layer(last_conv_layer_name)
-        grad_model = keras.models.Model(
-            inputs=model.inputs,
-            outputs=[last_conv_layer.output, model.output],
-        )
+        target_layer = model.get_layer(last_conv_layer_name)
     except (ValueError, AttributeError):
-        # Fallback if layer is nested inside a sub-module
-        nested_model = None
-        for layer in model.layers:
+        # Look inside submodules
+        for i, layer in enumerate(model.layers):
             if hasattr(layer, "layers"):
                 try:
                     target_layer = layer.get_layer(last_conv_layer_name)
-                    nested_model = layer
+                    nested_layer = layer
+                    nested_idx = i
+                    is_nested = True
                     break
-                except ValueError:
+                except (ValueError, AttributeError):
                     continue
 
-        if nested_model is None:
-            raise ValueError(f"Layer '{last_conv_layer_name}' not found in model.")
-
+    if not is_nested:
+        # Standard functional/sequential model (e.g. Baseline CNN)
         grad_model = keras.models.Model(
-            inputs=nested_model.inputs,
-            outputs=[target_layer.output, nested_model.output],
+            inputs=model.inputs,
+            outputs=[target_layer.output, model.output],
         )
 
-    # Record operations for gradient computation
-    with tf.GradientTape() as tape:
-        conv_outputs, predictions = grad_model(img_array)
-        # For binary classification with sigmoid output:
-        loss = predictions[:, 0]
+        with tf.GradientTape() as tape:
+            conv_outputs, predictions = grad_model(img_array)
+            prob = predictions[:, 0]
+            # If pred_index is None, explain the winning class
+            target_class = pred_index if pred_index is not None else tf.cast(prob >= 0.5, tf.int32).numpy()[0]
+            # Binary loss: if target is Defective (0), maximize (1 - prob); if OK (1), maximize prob
+            loss = prob if target_class == 1 else (1.0 - prob)
 
-    # Compute gradients of class score with respect to feature map activations
-    grads = tape.gradient(loss, conv_outputs)
+        grads = tape.gradient(loss, conv_outputs)
+        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+        conv_outputs = conv_outputs[0]
+        heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+        heatmap = tf.squeeze(heatmap)
 
-    # Global average pooling across spatial dimensions to get channel importance weights
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    else:
+        # Nested model architecture (e.g. MobileNetV2 backbone called inside model)
+        # 1. Submodel for feature extraction inside the nested backbone
+        feature_extractor = keras.Model(
+            inputs=nested_layer.inputs,
+            outputs=[target_layer.output, nested_layer.output],
+        )
 
-    # Weight feature map channels by gradient importance
-    conv_outputs = conv_outputs[0]
-    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
-    heatmap = tf.squeeze(heatmap)
+        # 2. Classifier head submodel representing layers after the nested backbone
+        classifier_input = keras.Input(shape=nested_layer.output.shape[1:])
+        x_clf = classifier_input
+        for layer in model.layers[nested_idx + 1:]:
+            x_clf = layer(x_clf)
+        classifier_model = keras.Model(inputs=classifier_input, outputs=x_clf)
 
-    # Apply ReLU to retain only features that contribute positively to the class score
-    heatmap = tf.maximum(heatmap, 0) / (tf.math.reduce_max(heatmap) + tf.keras.backend.epsilon())
+        # 3. Compute gradients end-to-end
+        with tf.GradientTape() as tape:
+            # Pass input through any preprocessing layers prior to nested backbone
+            x_in = img_array
+            for layer in model.layers[:nested_idx]:
+                x_in = layer(x_in)
+
+            conv_outputs, base_out = feature_extractor(x_in)
+            tape.watch(conv_outputs)
+
+            predictions = classifier_model(base_out)
+            prob = predictions[:, 0]
+            target_class = pred_index if pred_index is not None else tf.cast(prob >= 0.5, tf.int32).numpy()[0]
+            loss = prob if target_class == 1 else (1.0 - prob)
+
+        grads = tape.gradient(loss, conv_outputs)
+        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+        conv_outputs = conv_outputs[0]
+        heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+        heatmap = tf.squeeze(heatmap)
+
+    # Apply ReLU: only retain activations that contribute positively to the target class
+    heatmap = tf.maximum(heatmap, 0)
+    max_val = tf.math.reduce_max(heatmap)
+    if max_val > 0:
+        heatmap = heatmap / max_val
+
     return heatmap.numpy()
 
 

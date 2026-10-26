@@ -86,17 +86,16 @@ def build_transfer_model(
     inputs = keras.Input(shape=input_shape, name="input_image")
 
     if backbone_name == "MobileNetV2":
-        # Preprocessing expects [-1, 1] range
-        preprocess_input = keras.applications.mobilenet_v2.preprocess_input
-        x = preprocess_input(inputs)
+        # Preprocessing maps [0, 255] to [-1, 1] range: (x / 127.5) - 1.0
+        x = layers.Rescaling(1.0 / 127.5, offset=-1.0, name="mobilenet_norm")(inputs)
         base_model = keras.applications.MobileNetV2(
             input_shape=input_shape,
             include_top=False,
             weights="imagenet",
         )
     elif backbone_name == "ResNet50":
-        preprocess_input = keras.applications.resnet50.preprocess_input
-        x = preprocess_input(inputs)
+        # Rescaling for ResNet
+        x = layers.Rescaling(1.0 / 255.0, name="resnet_norm")(inputs)
         base_model = keras.applications.ResNet50(
             input_shape=input_shape,
             include_top=False,
