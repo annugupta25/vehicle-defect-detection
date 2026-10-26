@@ -1,0 +1,2 @@
+# This file ensures git tracks the data/ directory.
+# Actual dataset files are ignored via .gitignore.

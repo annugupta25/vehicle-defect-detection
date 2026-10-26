@@ -1,0 +1,2 @@
+# This file ensures git tracks the models/ directory.
+# Trained model weights (*.keras, *.h5) are ignored via .gitignore.

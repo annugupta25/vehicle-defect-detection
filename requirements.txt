@@ -1,0 +1,24 @@
+# Core Deep Learning & Machine Learning
+# Pinned to TensorFlow 2.16.x with NumPy 1.x compatibility
+tensorflow>=2.15.0,<2.18.0
+keras>=3.0.0,<3.7.0
+numpy>=1.24.3,<2.0.0
+
+# Data Manipulation & Scientific Computing
+pandas>=2.1.0,<3.0.0
+scikit-learn>=1.3.0,<1.6.0
+
+# Image Processing & Computer Vision
+opencv-python-headless>=4.8.0,<5.0.0
+pillow>=10.0.0,<11.0.0
+
+# Data Visualization
+matplotlib>=3.8.0,<3.10.0
+seaborn>=0.13.0,<0.14.0
+
+# Web Application
+streamlit>=1.32.0,<1.40.0
+
+# Jupyter Notebook & Development
+ipykernel>=6.29.0
+jupyterlab>=4.0.0,<5.0.0
