@@ -155,108 +155,126 @@ def main():
             """
         )
 
-    # Upload Section
-    uploaded_file = st.file_uploader(
-        "Upload a cast part inspection image (JPEG / PNG)",
-        type=["jpg", "jpeg", "png"],
-        help="Upload top-down photograph of cast pump impeller",
-    )
+    # Four Main Application Tabs
+    tab_inspect, tab_batch, tab_perf, tab_about = st.tabs([
+        "🔍 Inspect",
+        "📦 Batch Inspection",
+        "📈 Model Performance",
+        "ℹ️ About",
+    ])
 
-    if uploaded_file is not None:
-        # Validate file extension gracefully
-        valid_extensions = (".jpg", ".jpeg", ".png")
-        if not uploaded_file.name.lower().endswith(valid_extensions):
-            st.error(f"❌ Unsupported file type for '{uploaded_file.name}'. Please upload a valid JPEG or PNG image.")
-            return
+    with tab_inspect:
+        # Upload Section
+        uploaded_file = st.file_uploader(
+            "Upload a cast part inspection image (JPEG / PNG)",
+            type=["jpg", "jpeg", "png"],
+            help="Upload top-down photograph of cast pump impeller",
+        )
 
-        try:
-            image = Image.open(uploaded_file)
-            # Convert color images/grayscale/RGBA to RGB exactly as used in model training
-            if image.mode != "RGB":
-                image = image.convert("RGB")
-        except Exception as e:
-            st.error(f"❌ Could not process uploaded image: {e}. Please verify the file is not corrupted.")
-            return
-
-        # Preprocess
-        batch_array, display_array = preprocess_image_for_model(image, target_size=(224, 224))
-
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 1, 1])
-
-        with col1:
-            st.subheader("📷 Uploaded Part")
-            st.image(image, caption="Original Image", use_container_width=True)
-
-        if model is not None:
-            # Run inference
-            with st.spinner("Analyzing part for casting defects..."):
-                prediction_prob = float(model.predict(batch_array, verbose=0)[0][0])
-
-            # Class mapping:
-            # In training, def_front = 0 (Defective), ok_front = 1 (OK)
-            # prediction_prob is P(OK); defect_prob is P(Defective) = 1.0 - prediction_prob
-            defect_prob = 1.0 - prediction_prob
-            is_defective = defect_prob >= defect_threshold
-
-            if is_defective:
-                label_str = "DEFECTIVE (Reject)"
-                badge_class = "badge-def"
-                decision_note = f"Casting defect detected (Defect score {defect_prob:.2f}, threshold {defect_threshold:.2f})."
+        if uploaded_file is not None:
+            # Validate file extension gracefully
+            valid_extensions = (".jpg", ".jpeg", ".png")
+            if not uploaded_file.name.lower().endswith(valid_extensions):
+                st.error(f"❌ Unsupported file type for '{uploaded_file.name}'. Please upload a valid JPEG or PNG image.")
             else:
-                label_str = "OK (Pass)"
-                badge_class = "badge-ok"
-                decision_note = f"Part meets quality standards (Defect score {defect_prob:.2f}, threshold {defect_threshold:.2f})."
+                try:
+                    image = Image.open(uploaded_file)
+                    # Convert color images/grayscale/RGBA to RGB exactly as used in model training
+                    if image.mode != "RGB":
+                        image = image.convert("RGB")
+                except Exception as e:
+                    st.error(f"❌ Could not process uploaded image: {e}. Please verify the file is not corrupted.")
+                    image = None
 
-            # Generate Grad-CAM highlighting the decision (0: Defective, 1: OK)
-            try:
-                heatmap = make_gradcam_heatmap(batch_array, model, pred_index=0 if is_defective else 1)
-                superimposed, _ = overlay_gradcam(display_array, heatmap, alpha=0.45)
-            except Exception as e:
-                superimposed = None
-                st.warning(f"Grad-CAM generation notice: {e}")
+                if image is not None:
+                    # Preprocess
+                    batch_array, display_array = preprocess_image_for_model(image, target_size=(224, 224))
 
-            with col2:
-                st.subheader("🔥 Grad-CAM Heatmap")
-                if superimposed is not None:
-                    st.image(
-                        superimposed,
-                        caption="Defect Region Focus",
-                        use_container_width=True,
-                    )
-                else:
-                    st.info("Heatmap visualization unavailable for this model layer.")
+                    st.markdown("---")
+                    col1, col2, col3 = st.columns([1, 1, 1])
 
-            with col3:
-                st.subheader("📊 Inspection Result")
-                st.markdown(
-                    f"<div class='{badge_class}'>{label_str}</div>",
-                    unsafe_allow_html=True,
-                )
-                st.write("")
-                st.markdown(f"#### Defect score {defect_prob:.2f} (threshold {defect_threshold:.2f})")
-                st.progress(min(max(defect_prob, 0.0), 1.0))
+                    with col1:
+                        st.subheader("📷 Uploaded Part")
+                        st.image(image, caption="Original Image", use_container_width=True)
 
-                st.markdown(f"**Assessment:** {decision_note}")
-                st.caption(f"Raw Model Sigmoid $P(\\text{{OK}})$: `{prediction_prob:.4f}`")
-                
-                # Operational threshold guidance note
-                st.info(
-                    "💡 **Operational Note:** A lower threshold catches more defects (higher recall) but yields more false alarms. "
-                    "A higher threshold minimizes false alarms but may miss subtle casting defects.",
-                    icon="ℹ️",
-                )
-                
-                # Print mapping diagnostic to console
-                print(f"[Inference Audit] Input: '{uploaded_file.name}' | Sigmoid P(OK): {prediction_prob:.4f} | Defect Score P(Defective): {defect_prob:.4f} | Threshold: {defect_threshold:.2f} => Final Classification: {label_str}")
-        else:
-            with col2:
-                st.subheader("🔥 Grad-CAM Heatmap")
-                st.info("Awaiting `models/model.keras` for activation map rendering.")
+                    if model is not None:
+                        # Run inference
+                        with st.spinner("Analyzing part for casting defects..."):
+                            prediction_prob = float(model.predict(batch_array, verbose=0)[0][0])
 
-            with col3:
-                st.subheader("📊 Inspection Result")
-                st.info("Awaiting model weights to produce live inference.")
+                        defect_prob = 1.0 - prediction_prob
+                        is_defective = defect_prob >= defect_threshold
+
+                        if is_defective:
+                            label_str = "DEFECTIVE (Reject)"
+                            badge_class = "badge-def"
+                            decision_note = f"Casting defect detected (Defect score {defect_prob:.2f}, threshold {defect_threshold:.2f})."
+                        else:
+                            label_str = "OK (Pass)"
+                            badge_class = "badge-ok"
+                            decision_note = f"Part meets quality standards (Defect score {defect_prob:.2f}, threshold {defect_threshold:.2f})."
+
+                        # Generate Grad-CAM highlighting the decision
+                        try:
+                            heatmap = make_gradcam_heatmap(batch_array, model, pred_index=0 if is_defective else 1)
+                            superimposed, _ = overlay_gradcam(display_array, heatmap, alpha=0.45)
+                        except Exception as e:
+                            superimposed = None
+                            st.warning(f"Grad-CAM generation notice: {e}")
+
+                        with col2:
+                            st.subheader("🔥 Grad-CAM Heatmap")
+                            if superimposed is not None:
+                                st.image(
+                                    superimposed,
+                                    caption="Defect Region Focus",
+                                    use_container_width=True,
+                                )
+                            else:
+                                st.info("Heatmap visualization unavailable for this model layer.")
+
+                        with col3:
+                            st.subheader("📊 Inspection Result")
+                            st.markdown(
+                                f"<div class='{badge_class}'>{label_str}</div>",
+                                unsafe_allow_html=True,
+                            )
+                            st.write("")
+                            st.markdown(f"#### Defect score {defect_prob:.2f} (threshold {defect_threshold:.2f})")
+                            st.progress(min(max(defect_prob, 0.0), 1.0))
+
+                            st.markdown(f"**Assessment:** {decision_note}")
+                            st.caption(f"Raw Model Sigmoid $P(\\text{{OK}})$: `{prediction_prob:.4f}`")
+                            
+                            # Operational threshold guidance note
+                            st.info(
+                                "💡 **Operational Note:** A lower threshold catches more defects (higher recall) but yields more false alarms. "
+                                "A higher threshold minimizes false alarms but may miss subtle casting defects.",
+                                icon="ℹ️",
+                            )
+                            
+                            # Print mapping diagnostic to console
+                            print(f"[Inference Audit] Input: '{uploaded_file.name}' | Sigmoid P(OK): {prediction_prob:.4f} | Defect Score P(Defective): {defect_prob:.4f} | Threshold: {defect_threshold:.2f} => Final Classification: {label_str}")
+                    else:
+                        with col2:
+                            st.subheader("🔥 Grad-CAM Heatmap")
+                            st.info("Awaiting `models/model.keras` for activation map rendering.")
+
+                        with col3:
+                            st.subheader("📊 Inspection Result")
+                            st.info("Awaiting model weights to produce live inference.")
+
+    with tab_batch:
+        st.subheader("📦 Batch Casting Inspection")
+        st.caption("Upload multiple casting images for parallel automated defect inspection.")
+
+    with tab_perf:
+        st.subheader("📈 Model Performance & Threshold Analysis")
+        st.caption("Interactive metrics computation and evaluation across the holdout test dataset.")
+
+    with tab_about:
+        st.subheader("ℹ️ About Vehicle Defect Detection")
+        st.caption("Technical system specifications, model details, and manufacturing operational scope.")
 
 
 if __name__ == "__main__":
