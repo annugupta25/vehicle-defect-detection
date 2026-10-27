@@ -151,17 +151,37 @@ Upload any test casting image to view prediction and Grad-CAM explanation.
 
 ---
 
-## 6. Evaluation Results (Placeholders)
+## 6. Empirical Evaluation Results
 
-*Note: Models will be evaluated on the holdout test set (`data/casting_data/casting_data/test/`) once training in Colab is completed.*
+*Evaluated on the holdout test set (`data/casting_data/casting_data/test/` — 715 images: 453 Defective, 262 OK).*
 
-| Model Architecture | Test Accuracy | Precision (Defective) | Recall (Defective) | F1-Score | Latency (CPU) |
+### 6.1 Model Performance Overview
+
+| Model Architecture | Test Accuracy | Precision (Defective) | Recall (Defective) | F1-Score | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Baseline CNN** | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
-| **MobileNetV2 (Transfer)** | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
-| **ResNet50 (Transfer)** | *Pending* | *Pending* | *Pending* | *Pending* | *Pending* |
+| **MobileNetV2 (Transfer, T=0.50)** | **98.60%** | **99.33%** | **98.45%** | **0.9889** | Standard Threshold |
+| **MobileNetV2 (Transfer, T=0.65)** | **98.46%** | **100.00%** | **97.57%** | **0.9877** | **Recommended (0 False Positives)** |
+| **MobileNetV2 (Transfer, T=0.35)** | **98.46%** | **98.25%** | **99.34%** | **0.9879** | Ultra-High Safety (3 Missed) |
+| **Baseline CNN** | *Optional Benchmark* | *—* | *—* | *—* | Architecture Available in `src/model.py` |
 
-> **Key Quality Metric:** In manufacturing, **Recall (Defective)** is the primary optimization objective. A False Negative (shipping a defective casting to assembly) carries a far higher penalty than a False Positive (re-inspecting a good part).
+### 6.2 Decision Threshold Trade-Off Analysis (`notebooks/03_error_analysis.ipynb`)
+
+| Threshold $P(\text{Defect})$ | Defect Precision | Defect Recall | F1-Score | True Positives (TP) | False Negatives (FN) | False Positives (FP) | Recall $\ge 0.95$ |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **0.30** | 97.40% | 99.34% | 0.9836 | 450 | 3 | 12 | YES |
+| **0.35** | 98.25% | 99.34% | 0.9879 | 450 | 3 | 8 | YES |
+| **0.40** | 98.68% | 99.12% | 0.9890 | 449 | 4 | 6 | YES |
+| **0.45** | 98.90% | 98.90% | 0.9890 | 448 | 5 | 5 | YES |
+| **0.50** | 99.33% | 98.45% | 0.9889 | 446 | 7 | 3 | YES |
+| **0.55** | 99.55% | 98.23% | 0.9889 | 445 | 8 | 2 | YES |
+| **0.60** | 99.78% | 98.01% | 0.9889 | 444 | 9 | 1 | YES |
+| **0.65 (Recommended)** | **100.00%** | **97.57%** | **0.9877** | **442** | **11** | **0** | **YES** |
+| **0.70** | 100.00% | 96.91% | 0.9843 | 439 | 14 | 0 | YES |
+
+> **Key Quality Engineering Insights:**
+> 1. **Zero False Alarms at $T=0.65$:** At the recommended threshold $T=0.65$, Precision reaches **100.00%** (0 False Positives out of 262 OK parts) while maintaining an outstanding **97.57% Defect Recall** (catching 442 out of 453 defective parts).
+> 2. **High-Security Mode ($T=0.35$):** For mission-critical aerospace or safety-critical automotive lines where almost zero defect leakage is tolerated, setting $T=0.35$ raises Recall to **99.34%** (only 3 missed defects out of 453), with just 8 false alarms across the entire test set.
+> 3. **Dynamic Line Control:** The threshold slider in `app/app.py` defaults to `0.65` and allows line supervisors to tune this operating trade-off in real time.
 
 ---
 
