@@ -1,8 +1,8 @@
 # Core Deep Learning & Machine Learning
-# Compatible with modern Google Colab (Python 3.11/3.12) & local environments
-tensorflow>=2.15.0
+# Pinned for Streamlit Community Cloud and Google Colab compatibility
+tensorflow==2.16.2
 keras>=3.0.0
-numpy>=1.24.3
+numpy>=1.24.3,<2.0.0
 
 # Data Manipulation & Scientific Computing
 pandas>=2.1.0

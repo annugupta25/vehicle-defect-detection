@@ -41,13 +41,15 @@ venv.bak/
 data/*
 !data/.gitkeep
 
-# Ignore all model weights/artifacts in models/ except .gitkeep
+# Ignore all model weights/artifacts in models/ except model.keras (<100MB) and .gitkeep
 models/*
 !models/.gitkeep
+!models/model.keras
 
-# Ignore generated reports/figures except .gitkeep
+# Track generated reports figures in Git for README documentation
 reports/figures/*
 !reports/figures/.gitkeep
+!reports/figures/*.png
 
 # macOS specific
 .DS_Store
