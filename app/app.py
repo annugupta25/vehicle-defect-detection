@@ -381,7 +381,107 @@ def main():
 
     with tab_batch:
         st.subheader("📦 Batch Casting Inspection")
-        st.caption("Upload multiple casting images for parallel automated defect inspection.")
+        st.markdown(
+            "Upload multiple casting photographs for parallel automated inspection. "
+            "Results will be classified using the current sensitivity threshold ($T="
+            f"{defect_threshold:.2f}$)."
+        )
+
+        batch_files = st.file_uploader(
+            "Select multiple part images (JPEG / PNG)",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key="batch_files_uploader",
+            help="Select several casting images from your machine to process at once",
+        )
+
+        if batch_files:
+            if model is None:
+                st.warning("⚠️ Model weights not loaded. Please ensure `models/model.keras` is in place.")
+            else:
+                st.write(f"📁 Selected **{len(batch_files)}** images for inspection.")
+                if st.button("🚀 Process All Images", key="start_batch_btn", type="primary"):
+                    progress_bar = st.progress(0.0)
+                    status_text = st.empty()
+                    batch_records = []
+
+                    for idx, b_file in enumerate(batch_files):
+                        progress_val = (idx + 1) / len(batch_files)
+                        progress_bar.progress(progress_val)
+                        status_text.text(f"Inspecting image {idx + 1}/{len(batch_files)}: {b_file.name}...")
+
+                        try:
+                            pil_img = Image.open(b_file)
+                            if pil_img.mode != "RGB":
+                                pil_img = pil_img.convert("RGB")
+                            batch_arr, _ = preprocess_image_for_model(pil_img, target_size=(224, 224))
+                            p_ok = float(model.predict(batch_arr, verbose=0)[0][0])
+                            p_def = 1.0 - p_ok
+                            verdict = "DEFECTIVE" if p_def >= defect_threshold else "OK"
+
+                            batch_records.append({
+                                "Filename": b_file.name,
+                                "Defect Score": round(p_def, 4),
+                                "Decision Threshold": round(defect_threshold, 2),
+                                "Verdict": verdict,
+                                "Raw P(OK)": round(p_ok, 4),
+                            })
+                        except Exception as e:
+                            batch_records.append({
+                                "Filename": b_file.name,
+                                "Defect Score": None,
+                                "Decision Threshold": round(defect_threshold, 2),
+                                "Verdict": f"Error: {e}",
+                                "Raw P(OK)": None,
+                            })
+
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.session_state["batch_results"] = batch_records
+
+                # Display batch results if present in session state
+                if "batch_results" in st.session_state and st.session_state["batch_results"]:
+                    df_batch = pd.DataFrame(st.session_state["batch_results"])
+                    total_count = len(df_batch)
+                    def_count = sum(df_batch["Verdict"] == "DEFECTIVE")
+                    ok_count = sum(df_batch["Verdict"] == "OK")
+                    err_count = total_count - def_count - ok_count
+
+                    st.markdown("---")
+                    st.markdown("#### 📊 Batch Summary")
+                    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+                    with col_b1:
+                        st.metric("Total Inspected", total_count)
+                    with col_b2:
+                        st.metric("Defective (Reject)", def_count)
+                    with col_b3:
+                        st.metric("OK (Pass)", ok_count)
+                    with col_b4:
+                        defect_rate = (def_count / total_count * 100.0) if total_count > 0 else 0.0
+                        st.metric("Batch Defect Rate", f"{defect_rate:.1f}%")
+
+                    # Color-coded table display
+                    st.markdown("#### 📑 Inspection Manifest")
+                    
+                    def color_verdict(val):
+                        if val == "DEFECTIVE":
+                            return "background-color: #FEE2E2; color: #B91C1C; font-weight: bold;"
+                        elif val == "OK":
+                            return "background-color: #DCFCE7; color: #15803D; font-weight: bold;"
+                        return ""
+
+                    styled_df = df_batch.style.applymap(color_verdict, subset=["Verdict"])
+                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+                    # CSV Download Button
+                    csv_export = df_batch.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="📥 Download Batch Results (CSV)",
+                        data=csv_export,
+                        file_name=f"batch_inspection_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        key="download_batch_csv",
+                    )
 
     with tab_perf:
         st.subheader("📈 Model Performance & Threshold Analysis")
