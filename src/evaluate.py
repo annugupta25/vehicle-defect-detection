@@ -17,7 +17,10 @@ from sklearn.metrics import (
     f1_score,
 )
 import tensorflow as tf
-from tensorflow import keras
+try:
+    import keras
+except ImportError:
+    from tensorflow import keras
 
 
 def evaluate_dataset(

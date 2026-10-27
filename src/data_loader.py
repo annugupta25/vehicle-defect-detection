@@ -8,8 +8,12 @@ augmentation layers (flip, rotation, brightness, zoom).
 import os
 from typing import Tuple, Optional
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+try:
+    import keras
+    from keras import layers
+except ImportError:
+    from tensorflow import keras
+    from tensorflow.keras import layers
 
 
 def get_augmentation_pipeline() -> keras.Sequential:

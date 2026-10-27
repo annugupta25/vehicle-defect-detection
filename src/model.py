@@ -7,8 +7,12 @@ Provides builders for:
 
 from typing import Tuple
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+try:
+    import keras
+    from keras import layers
+except ImportError:
+    from tensorflow import keras
+    from tensorflow.keras import layers
 
 
 def build_baseline_cnn(

@@ -163,10 +163,19 @@ def main():
     )
 
     if uploaded_file is not None:
+        # Validate file extension gracefully
+        valid_extensions = (".jpg", ".jpeg", ".png")
+        if not uploaded_file.name.lower().endswith(valid_extensions):
+            st.error(f"❌ Unsupported file type for '{uploaded_file.name}'. Please upload a valid JPEG or PNG image.")
+            return
+
         try:
-            image = Image.open(uploaded_file).convert("RGB")
+            image = Image.open(uploaded_file)
+            # Convert color images/grayscale/RGBA to RGB exactly as used in model training
+            if image.mode != "RGB":
+                image = image.convert("RGB")
         except Exception as e:
-            st.error(f"Could not open image: {e}")
+            st.error(f"❌ Could not process uploaded image: {e}. Please verify the file is not corrupted.")
             return
 
         # Preprocess
@@ -237,7 +246,17 @@ def main():
                 st.caption(f"Decision Boundary: `{defect_threshold:.2f}` (Sensitivity: {defect_threshold:.0%})")
 
                 st.markdown(f"**Assessment:** {decision_note}")
-                st.caption(f"Raw Model Sigmoid (P_ok): `{prediction_prob:.4f}`")
+                st.caption(f"Raw Model Sigmoid $P(\\text{{OK}})$: `{prediction_prob:.4f}` | Decision Boundary: `{defect_threshold:.2f}`")
+                
+                # Operational threshold guidance note
+                st.info(
+                    "💡 **Operational Note:** A lower threshold catches more defects (higher recall) but yields more false alarms. "
+                    "A higher threshold minimizes false alarms but may miss subtle casting defects.",
+                    icon="ℹ️",
+                )
+                
+                # Print mapping diagnostic to console
+                print(f"[Inference Audit] Input: '{uploaded_file.name}' | Sigmoid P(OK): {prediction_prob:.4f} | Defect Score P(Defective): {defect_prob:.4f} | Threshold: {defect_threshold:.2f} => Final Classification: {label_str}")
         else:
             with col2:
                 st.subheader("🔥 Grad-CAM Heatmap")
