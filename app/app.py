@@ -77,12 +77,15 @@ st.markdown(
 @st.cache_resource(show_spinner=False)
 def load_trained_model(model_path: str):
     """Loads and caches the trained Keras model from disk."""
-    import tensorflow as tf
     if not os.path.exists(model_path):
         return None
     try:
-        model = tf.keras.models.load_model(model_path)
-        return model
+        try:
+            import keras
+            return keras.models.load_model(model_path)
+        except Exception:
+            import tensorflow as tf
+            return tf.keras.models.load_model(model_path)
     except Exception as e:
         st.error(f"Error loading model from {model_path}: {e}")
         return None

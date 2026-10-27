@@ -9,7 +9,10 @@ from typing import Optional, Tuple
 import numpy as np
 import cv2
 import tensorflow as tf
-from tensorflow import keras
+try:
+    import keras
+except ImportError:
+    from tensorflow import keras
 
 
 def find_last_conv_layer(model: keras.Model) -> str:
@@ -121,6 +124,8 @@ def make_gradcam_heatmap(
             # Pass input through any preprocessing layers prior to nested backbone
             x_in = img_array
             for layer in model.layers[:nested_idx]:
+                if isinstance(layer, keras.layers.InputLayer):
+                    continue
                 x_in = layer(x_in)
 
             conv_outputs, base_out = feature_extractor(x_in)
