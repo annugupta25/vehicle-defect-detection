@@ -484,8 +484,123 @@ def main():
                     )
 
     with tab_perf:
-        st.subheader("📈 Model Performance & Threshold Analysis")
-        st.caption("Interactive metrics computation and evaluation across the holdout test dataset.")
+        st.subheader("📈 Model Performance & Live Threshold Evaluation")
+        st.markdown(
+            "Explore how shifting the decision boundary affects factory quality assurance metrics. "
+            "All statistics are dynamically re-calculated across the **715 holdout test images**."
+        )
+
+        test_csv_path = os.path.join(PROJECT_ROOT, "reports", "test_predictions.csv")
+
+        if not os.path.exists(test_csv_path):
+            st.info(
+                "ℹ️ **Evaluation Dataset Missing (`reports/test_predictions.csv`)**\n\n"
+                "To populate this tab with real empirical test data, run the model evaluation script "
+                "or generate test predictions. Once saved, metrics, confusion matrices, and trade-off curves "
+                "will activate automatically here."
+            )
+        else:
+            try:
+                df_perf = pd.read_csv(test_csv_path)
+                
+                # Interactive threshold slider
+                perf_col1, perf_col2 = st.columns([2, 1])
+                with perf_col1:
+                    eval_threshold = st.slider(
+                        "Interactive Decision Threshold ($T$)",
+                        min_value=0.10,
+                        max_value=0.90,
+                        value=0.65,
+                        step=0.01,
+                        key="eval_perf_slider",
+                        help="Slide to simulate different production risk tolerances.",
+                    )
+                with perf_col2:
+                    st.write("")
+                    st.write("")
+                    st.caption(f"Currently evaluating: **$P(\\text{{Defect}}) \\ge {eval_threshold:.2f}$**")
+
+                st.info(
+                    "📌 **Note on Selection:** The default threshold ($T=0.65$) was selected using this holdout test set, "
+                    "so results at that specific threshold may be slightly optimistic.",
+                    icon="ℹ️",
+                )
+
+                # Compute dynamic metrics
+                y_true = (df_perf["true_class"] == "Defective").astype(int).values
+                p_defect = df_perf["p_defect"].values
+                y_pred = (p_defect >= eval_threshold).astype(int)
+
+                tp = int(np.sum((y_pred == 1) & (y_true == 1)))
+                fp = int(np.sum((y_pred == 1) & (y_true == 0)))
+                fn = int(np.sum((y_pred == 0) & (y_true == 1)))
+                tn = int(np.sum((y_pred == 0) & (y_true == 0)))
+                total = len(y_true)
+
+                accuracy = (tp + tn) / total if total > 0 else 0.0
+                precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+                recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+                f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+
+                # Summary metrics
+                st.markdown("#### 🎯 Overall Classification Metrics")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Test Accuracy", f"{accuracy * 100.0:.2f}%")
+                m2.metric("Defect Precision", f"{precision * 100.0:.2f}%", help="Percentage of flagged parts that are truly defective")
+                m3.metric("Defect Recall", f"{recall * 100.0:.2f}%", help="Percentage of defective parts successfully caught")
+                m4.metric("F1-Score", f"{f1:.4f}")
+
+                # Error and Confusion counts
+                st.markdown("#### ⚖️ Error & Detection Counts")
+                e1, e2, e3, e4 = st.columns(4)
+                e1.metric("False Negatives (Missed)", fn, delta=f"{fn} defect escapes" if fn > 0 else "0 missed", delta_color="inverse")
+                e2.metric("False Positives (Alarms)", fp, delta=f"{fp} false alarms" if fp > 0 else "0 false alarms", delta_color="inverse")
+                e3.metric("True Positives (Defects Caught)", tp)
+                e4.metric("True Negatives (OK Passed)", tn)
+
+                # Live Confusion Matrix & PR Curve
+                st.markdown("---")
+                chart_col1, chart_col2 = st.columns([1, 1])
+
+                with chart_col1:
+                    st.markdown("##### 🔲 Live Confusion Matrix")
+                    cm_matrix = [[tp, fn], [fp, tn]]
+                    cm_fig = go.Figure(
+                        data=go.Heatmap(
+                            z=cm_matrix,
+                            x=["Predicted Defective", "Predicted OK"],
+                            y=["Actual Defective", "Actual OK"],
+                            text=[
+                                [f"<b>TP: {tp}</b><br>({tp/(tp+fn):.1%})", f"<b>FN: {fn}</b><br>({fn/(tp+fn):.1%})"],
+                                [f"<b>FP: {fp}</b><br>({fp/(fp+tn):.1%})", f"<b>TN: {tn}</b><br>({tn/(fp+tn):.1%})"],
+                            ],
+                            texttemplate="%{text}",
+                            textfont={"size": 15, "color": "white"},
+                            colorscale="Blues",
+                            showscale=False,
+                        )
+                    )
+                    cm_fig.update_layout(
+                        height=340,
+                        margin=dict(l=30, r=30, t=30, b=30),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(cm_fig, use_container_width=True)
+
+                with chart_col2:
+                    st.markdown("##### 📉 Precision-Recall Curve")
+                    pr_curve_path = os.path.join(PROJECT_ROOT, "reports", "figures", "precision_recall_curve.png")
+                    if os.path.exists(pr_curve_path):
+                        st.image(
+                            pr_curve_path,
+                            caption=f"PR Curve (Holdout Test) — Current Point: Recall={recall:.1%}, Precision={precision:.1%}",
+                            use_container_width=True,
+                        )
+                    else:
+                        st.info("Precision-Recall curve image available in reports/figures/.")
+
+            except Exception as e:
+                st.error(f"❌ Could not compute performance metrics: {e}")
 
     with tab_about:
         st.subheader("ℹ️ About Vehicle Defect Detection")
