@@ -54,9 +54,18 @@ data/casting_data/casting_data/
 ```
 
 ### Key EDA Observations:
-1. **Surface Defect Morphology:** Defects manifest as localized surface irregularities, pits, and hairline cracks, mostly concentrated on the central hub, blades, and outer annular rim of the impeller.
-2. **Controlled Factory Conditions:** Backgrounds are relatively uniform metallic inspection platens, but specular highlights (reflections) and subtle shadow variations along curved ridges present edge-case challenges.
-3. **Class Balance:** Both training and test partitions feature healthy representation of both classes (~57% defective, ~43% non-defective), preventing extreme majority-class bias.
+1. **Class Balance:** Both training (6,633 images: 56.7% Defective, 43.3% OK) and test partitions (715 images: 63.4% Defective, 36.6% OK) feature balanced representation without severe skew.
+2. **Surface Defect Morphology:** Defects manifest as localized surface voids, cracks, and porosity, concentrated primarily along the impeller blades and outer bevel ring.
+3. **Controlled Factory Conditions:** Standardized 300×300 grayscale captures with specular reflections concentrated on machined chamfers.
+
+#### Dataset Distribution & Sample Inspection Visuals
+| Class Distribution Overview | Sample Parts: Defective vs. OK |
+| :---: | :---: |
+| ![Class Distribution](reports/figures/class_distribution.png) | ![Sample Images](reports/figures/sample_images.png) |
+
+| Pixel Intensity Distribution (KDE) | Image Dimensions (300×300 px) |
+| :---: | :---: |
+| ![Pixel Intensity Distribution](reports/figures/pixel_intensity_distribution.png) | ![Image Dimensions Distribution](reports/figures/image_size_distribution.png) |
 
 ---
 
