@@ -115,7 +115,19 @@ def main():
         )
 
         st.markdown("---")
-        st.caption("Vehicle Component Defect Detection | Phase 1 Setup")
+        st.markdown("### 🎚️ Decision Threshold")
+        defect_threshold = st.slider(
+            "Defect Sensitivity Threshold",
+            min_value=0.10,
+            max_value=0.90,
+            value=0.45,
+            step=0.01,
+            help="Threshold for defect probability P(Defective). In manufacturing, a lower threshold (e.g. 0.45) ensures high Recall (>= 0.95), catching subtle cracks and pinholes.",
+        )
+        st.caption(f"Flagged as **DEFECTIVE** when $P(\\text{{Defect}}) \\ge {defect_threshold:.2f}$")
+
+        st.markdown("---")
+        st.caption("Vehicle Component Defect Detection | Production Inspection")
 
     # Main Header
     st.markdown("<div class='main-title'>🔍 Cast Metal Defect Detection System</div>", unsafe_allow_html=True)
@@ -173,25 +185,25 @@ def main():
                 prediction_prob = float(model.predict(batch_array, verbose=0)[0][0])
 
             # Class mapping:
-            # By default, image_dataset_from_directory sorts folders alphabetically:
-            # Index 0: def_front (Defective)
-            # Index 1: ok_front (OK)
-            # Therefore, sigmoid close to 1.0 indicates OK; close to 0.0 indicates Defective.
-            is_ok = prediction_prob >= 0.5
-            if is_ok:
-                label_str = "OK (Pass)"
-                badge_class = "badge-ok"
-                confidence = prediction_prob * 100.0
-                decision_note = "No significant casting anomalies detected."
-            else:
+            # In training, def_front = 0 (Defective), ok_front = 1 (OK)
+            # prediction_prob is P(OK); defect_prob is P(Defective) = 1.0 - prediction_prob
+            defect_prob = 1.0 - prediction_prob
+            is_defective = defect_prob >= defect_threshold
+
+            if is_defective:
                 label_str = "DEFECTIVE (Reject)"
                 badge_class = "badge-def"
-                confidence = (1.0 - prediction_prob) * 100.0
-                decision_note = "Potential casting defect (crack/porosity/pinhole) identified."
+                confidence = defect_prob * 100.0
+                decision_note = f"Casting defect detected (Defect Score: {defect_prob:.1%}, Threshold: {defect_threshold:.0%})."
+            else:
+                label_str = "OK (Pass)"
+                badge_class = "badge-ok"
+                confidence = (1.0 - defect_prob) * 100.0
+                decision_note = f"Part meets quality standards (Defect Score: {defect_prob:.1%}, Threshold: {defect_threshold:.0%})."
 
-            # Generate Grad-CAM
+            # Generate Grad-CAM highlighting the decision (0: Defective, 1: OK)
             try:
-                heatmap = make_gradcam_heatmap(batch_array, model)
+                heatmap = make_gradcam_heatmap(batch_array, model, pred_index=0 if is_defective else 1)
                 superimposed, _ = overlay_gradcam(display_array, heatmap, alpha=0.45)
             except Exception as e:
                 superimposed = None
@@ -215,11 +227,17 @@ def main():
                     unsafe_allow_html=True,
                 )
                 st.write("")
-                st.metric("Confidence Score", f"{confidence:.2f}%")
-                st.progress(confidence / 100.0)
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric("Defect Probability", f"{defect_prob:.1%}")
+                with col_m2:
+                    st.metric("Confidence", f"{confidence:.1f}%")
+
+                st.progress(min(max(defect_prob, 0.0), 1.0))
+                st.caption(f"Decision Boundary: `{defect_threshold:.2f}` (Sensitivity: {defect_threshold:.0%})")
 
                 st.markdown(f"**Assessment:** {decision_note}")
-                st.caption(f"Raw Sigmoid Output: `{prediction_prob:.4f}`")
+                st.caption(f"Raw Model Sigmoid (P_ok): `{prediction_prob:.4f}`")
         else:
             with col2:
                 st.subheader("🔥 Grad-CAM Heatmap")
