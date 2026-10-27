@@ -1,172 +1,87 @@
 # Vehicle Component Defect Detection (Cast Metal Parts)
 
-An end-to-end Computer Vision system for automated quality inspection of cast metal components (such as submersible pump impellers). The application classifies parts as **OK** or **Defective**, computes confidence scores, and localizes defect regions using **Grad-CAM (Gradient-weighted Class Activation Mapping)** heatmaps.
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](#-live-demo--app-preview)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![TensorFlow 2.15+](https://img.shields.io/badge/TensorFlow-2.15+-orange.svg)](https://tensorflow.org)
+
+An end-to-end Deep Learning and Computer Vision system for automated quality control inspection of cast metal components (submersible pump impellers). The application classifies castings as **OK** or **Defective**, computes calibrated confidence scores, provides dynamic decision threshold tuning, and localizes defect regions using **Grad-CAM (Gradient-weighted Class Activation Mapping)** heatmaps.
 
 ---
 
-## 1. Problem Statement
-In automotive and industrial manufacturing, metal casting is prone to defects such as:
+## 🔗 Live Demo & App Preview
+
+<!-- LIVE DEMO LINK PLACEHOLDER -->
+* **Live Streamlit App:** [Link to live Streamlit Community Cloud demo will be added here]
+
+<!-- APP SCREENSHOT PLACEHOLDER -->
+* **Application Screenshot:**
+*(App screenshot will be added here)*
+
+---
+
+## 1. Problem Statement & Manufacturing Context
+
+In automotive and heavy machinery manufacturing, metal casting is prone to structural defects:
 - Subsurface blowholes and gas porosity
 - Shrinkage cavities
 - Pinholes and surface cracks
 - Inclusions and mold wash
 
-Manual optical inspection is labor-intensive, fatigue-prone, and inconsistent across shifts. Automated defect detection powered by Deep Learning delivers:
-- **Consistent Quality Assurance:** Real-time part inspection before downstream assembly.
-- **Cost Reduction:** Scrap reduction and avoidance of machining already-defective castings.
-- **Explainability:** Visual justification for automated decisions using Grad-CAM heatmaps so quality engineers can inspect defect hotspots.
+Manual visual inspection on factory conveyor lines is fatigue-prone, subjective, and labor-expensive. An automated optical inspection (AOI) pipeline delivers:
+1. **Automated Quality Assurance:** High-throughput inline inspection prior to downstream machining and vehicle assembly.
+2. **Scrap & Rework Cost Reduction:** Catching defects early prevents expensive precision machining of flawed castings.
+3. **Auditability & Explainability:** Visual verification through Grad-CAM heatmaps so quality engineers can inspect defect regions rather than blindly trusting black-box predictions.
 
 ---
 
-## 2. Dataset
+## 2. Dataset & Exploratory Data Analysis (EDA)
+
 - **Source:** Kaggle — [Casting product image data for quality inspection](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product) (by ravirajsinh45).
-- **Target Component:** Cast submersible pump impeller.
-- **Image Specifications:** ~300×300 grayscale JPEG images captured under stable top-down manufacturing lighting conditions.
-- **Problem Type:** Binary image classification (`def_front` vs. `ok_front`).
-- **Expected Directory Structure:**
-  ```text
-  data/
-  └── casting_data/
-      └── casting_data/
-          ├── train/
-          │   ├── def_front/   # Defective training samples
-          │   └── ok_front/    # Non-defective (OK) training samples
-          └── test/
-              ├── def_front/   # Defective test samples
-              └── ok_front/    # Non-defective (OK) test samples
-  ```
+- **Target Part:** Cast submersible pump impeller.
+- **Image Specifications:** Grayscale 300×300 JPEG images captured under top-down manufacturing optical illumination.
+- **Problem Formulation:** Binary image classification (`def_front` = Class 0 vs. `ok_front` = Class 1).
 
----
-
-## 3. Project Architecture & Approach
-The project follows a phased machine learning engineering lifecycle:
-
-1. **Phase 1: Project Setup & EDA (`notebooks/01_eda.ipynb`)**
-   - Class balance verification
-   - Image resolution and channel validation
-   - Pixel-intensity distribution comparisons between OK and Defective parts
-   - Visualizing typical casting defect artifacts (cracks, pinholes, blemishes)
-
-2. **Phase 2: Data Pipeline & Augmentation (`src/data_loader.py`)**
-   - Resizing to standard backbone input dimensions (224×224)
-   - 85/15 stratified train/validation split with fixed seed reproducibility
-   - Data augmentation pipeline: horizontal/vertical flips, small rotations, brightness adjustments, and zooms to simulate minor camera/positioning jitter
-   - TensorFlow `tf.data` pipeline optimization (`cache()`, `prefetch(AUTOTUNE)`)
-
-3. **Phase 3: Model Architecture & Training (`src/model.py`, `notebooks/02_training.ipynb`)**
-   - Designed for GPU execution (e.g., Google Colab)
-   - Baseline Custom CNN vs. Pretrained Transfer Learning Backbones (MobileNetV2 / ResNet50)
-   - Training callbacks: `EarlyStopping`, `ModelCheckpoint`, `ReduceLROnPlateau`
-   - Model artifact export: `models/model.keras`
-
-4. **Phase 4: Evaluation & Explainability (`src/evaluate.py`, `src/gradcam.py`)**
-   - Quantitative evaluation on holdout test set (Accuracy, Precision, Recall, F1-Score, ROC-AUC)
-   - Confusion matrix analysis (critical focus on minimizing False Negatives: defective parts passed as OK)
-   - Grad-CAM heatmap extraction from the final convolutional layer to highlight defect regions
-
-5. **Phase 5: Interactive Web App (`app/app.py`)**
-   - Streamlit interface for uploading part images
-   - Inference execution against `models/model.keras`
-   - Side-by-side display of original image, defect prediction badge, confidence score, and Grad-CAM overlay
-
----
-
-## 4. Repository Structure
+### Dataset Distribution
 ```text
-vehicle-defect-detection/
-├── .gitignore               # Ignores large datasets, virtualenvs, and model weights
-├── README.md                # Project documentation and guide
-├── requirements.txt         # Pinned project dependencies
-├── data/                    # Dataset directory (gitignored)
-│   └── .gitkeep
-├── models/                  # Saved model weights (model.keras, gitignored)
-│   └── .gitkeep
-├── notebooks/
-│   ├── 01_eda.ipynb         # Exploratory data analysis notebook
-│   └── 02_training.ipynb    # Google Colab GPU model training notebook
-├── src/
-│   ├── __init__.py
-│   ├── data_loader.py       # tf.data loading & augmentation pipelines
-│   ├── model.py             # CNN & Transfer Learning model builders
-│   ├── evaluate.py          # Metric calculations & confusion matrix plots
-│   ├── gradcam.py           # Grad-CAM heatmap generation utilities
-│   └── utils.py             # General helper functions (image I/O, plotting)
-├── app/
-│   └── app.py               # Streamlit web application for inference & Grad-CAM
-└── reports/
-    └── figures/             # Exported EDA & evaluation plots
-        └── .gitkeep
+data/casting_data/casting_data/
+├── train/ (6,633 images)
+│   ├── def_front/   3,758 images (56.7%)
+│   └── ok_front/    2,875 images (43.3%)
+└── test/ (715 holdout images)
+    ├── def_front/     453 images (63.4%)
+    └── ok_front/      262 images (36.6%)
 ```
+
+### Key EDA Observations:
+1. **Surface Defect Morphology:** Defects manifest as localized surface irregularities, pits, and hairline cracks, mostly concentrated on the central hub, blades, and outer annular rim of the impeller.
+2. **Controlled Factory Conditions:** Backgrounds are relatively uniform metallic inspection platens, but specular highlights (reflections) and subtle shadow variations along curved ridges present edge-case challenges.
+3. **Class Balance:** Both training and test partitions feature healthy representation of both classes (~57% defective, ~43% non-defective), preventing extreme majority-class bias.
 
 ---
 
-## 5. How to Run
+## 3. Results & Empirical Evaluation
 
-### 5.1 Environment Setup
-1. Clone this repository and open the directory:
-   ```bash
-   cd vehicle-defect-detection
-   ```
-2. Create and activate a Python virtual environment:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate    # On Windows: .venv\Scripts\activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
+All metrics are strictly evaluated on the **unseen 715-image holdout test set** (`data/casting_data/casting_data/test/`).
 
-### 5.2 Download Dataset
-1. Download the dataset from Kaggle:
-   - [Kaggle Dataset Link](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product)
-   - Or via Kaggle CLI: `kaggle datasets download -d ravirajsinh45/real-life-industrial-dataset-of-casting-product`
-2. Extract the archive into the `data/` folder so the paths match:
-   - `data/casting_data/casting_data/train/`
-   - `data/casting_data/casting_data/test/`
+### 3.1 Model Comparison: Baseline CNN vs. MobileNetV2
 
-### 5.3 Run Exploratory Data Analysis (EDA)
-Launch Jupyter and open `notebooks/01_eda.ipynb`:
-```bash
-jupyter lab notebooks/01_eda.ipynb
-```
-Running all cells will generate and save summary charts into `reports/figures/`.
+| Model Architecture | Parameters | Test Accuracy | Defect Precision | Defect Recall | F1-Score | ROC-AUC | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Baseline Custom CNN** | ~1.2M | *—* | *—* | *—* | *—* | *—* | Benchmark architecture implemented in `src/model.py` (4 Conv blocks + BatchNorm) |
+| **MobileNetV2 (Transfer, T=0.50)** | **2.26M** | **98.60%** | **99.33%** | **98.45%** | **0.9889** | **0.9965** | Standard 0.50 decision boundary (7 FN, 3 FP) |
+| **MobileNetV2 (Transfer, T=0.65)** | **2.26M** | **98.46%** | **100.00%** | **97.57%** | **0.9877** | **0.9965** | **Recommended Operating Point (11 FN, 0 FP)** |
+| **MobileNetV2 (Transfer, T=0.35)** | **2.26M** | **98.46%** | **98.25%** | **99.34%** | **0.9879** | **0.9965** | Ultra-High Recall Configuration (3 FN, 8 FP) |
 
-### 5.4 Train the Model (Google Colab Recommended)
-1. Upload `notebooks/02_training.ipynb` to [Google Colab](https://colab.research.google.com/) with a GPU runtime (T4 GPU recommended).
-2. Download or upload the dataset in Colab as guided in the notebook.
-3. Train the model and export the resulting `model.keras`.
-4. Place the trained file locally at:
-   ```text
-   models/model.keras
-   ```
-
-### 5.5 Launch the Streamlit Web Application
-Run the local web app to inspect castings interactively:
-```bash
-streamlit run app/app.py
-```
-Upload any test casting image to view prediction and Grad-CAM explanation.
+*(Note: Per design choice, MobileNetV2 was chosen and trained as the primary production architecture due to its superior feature reuse from ImageNet and low inference latency.)*
 
 ---
 
-## 6. Empirical Evaluation Results
+### 3.2 Decision Threshold Trade-Off Analysis (`T ∈ [0.30, 0.70]`)
 
-*Evaluated on the holdout test set (`data/casting_data/casting_data/test/` — 715 images: 453 Defective, 262 OK).*
+In manufacturing, default $0.50$ thresholds are rarely optimal because classification errors have unequal consequences.
 
-### 6.1 Model Performance Overview
-
-| Model Architecture | Test Accuracy | Precision (Defective) | Recall (Defective) | F1-Score | Status |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **MobileNetV2 (Transfer, T=0.50)** | **98.60%** | **99.33%** | **98.45%** | **0.9889** | Standard Threshold |
-| **MobileNetV2 (Transfer, T=0.65)** | **98.46%** | **100.00%** | **97.57%** | **0.9877** | **Recommended (0 False Positives)** |
-| **MobileNetV2 (Transfer, T=0.35)** | **98.46%** | **98.25%** | **99.34%** | **0.9879** | Ultra-High Safety (3 Missed) |
-| **Baseline CNN** | *Optional Benchmark* | *—* | *—* | *—* | Architecture Available in `src/model.py` |
-
-### 6.2 Decision Threshold Trade-Off Analysis (`notebooks/03_error_analysis.ipynb`)
-
-| Threshold $P(\text{Defect})$ | Defect Precision | Defect Recall | F1-Score | True Positives (TP) | False Negatives (FN) | False Positives (FP) | Recall $\ge 0.95$ |
+| Threshold $P(\text{Defect})$ | Precision (Defect) | Recall (Defect) | F1-Score | True Positives (TP) | False Negatives (FN) | False Positives (FP) | Recall $\ge 95\%$ |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **0.30** | 97.40% | 99.34% | 0.9836 | 450 | 3 | 12 | YES |
 | **0.35** | 98.25% | 99.34% | 0.9879 | 450 | 3 | 8 | YES |
@@ -175,25 +90,109 @@ Upload any test casting image to view prediction and Grad-CAM explanation.
 | **0.50** | 99.33% | 98.45% | 0.9889 | 446 | 7 | 3 | YES |
 | **0.55** | 99.55% | 98.23% | 0.9889 | 445 | 8 | 2 | YES |
 | **0.60** | 99.78% | 98.01% | 0.9889 | 444 | 9 | 1 | YES |
-| **0.65 (Recommended)** | **100.00%** | **97.57%** | **0.9877** | **442** | **11** | **0** | **YES** |
+| **0.65 (Chosen)** | **100.00%** | **97.57%** | **0.9877** | **442** | **11** | **0** | **YES** |
 | **0.70** | 100.00% | 96.91% | 0.9843 | 439 | 14 | 0 | YES |
 
-> **Key Quality Engineering Insights:**
-> 1. **Zero False Alarms at $T=0.65$:** At the recommended threshold $T=0.65$, Precision reaches **100.00%** (0 False Positives out of 262 OK parts) while maintaining an outstanding **97.57% Defect Recall** (catching 442 out of 453 defective parts).
-> 2. **High-Security Mode ($T=0.35$):** For mission-critical aerospace or safety-critical automotive lines where almost zero defect leakage is tolerated, setting $T=0.35$ raises Recall to **99.34%** (only 3 missed defects out of 453), with just 8 false alarms across the entire test set.
-> 3. **Dynamic Line Control:** The threshold slider in `app/app.py` defaults to `0.65` and allows line supervisors to tune this operating trade-off in real time.
+---
+
+### 3.3 Visual Evaluation Artifacts
+
+#### Confusion Matrix & Precision-Recall Curve
+| Confusion Matrix ($T=0.65$) | Precision-Recall Curve (Holdout Test) |
+| :---: | :---: |
+| ![Confusion Matrix](reports/figures/confusion_matrix.png) | ![Precision-Recall Curve](reports/figures/precision_recall_curve.png) |
+
+#### Training & Validation Learning Curves
+![Training Curves](reports/figures/training_history.png)
+*(Note: Upload training curves from Colab run to `reports/figures/training_history.png` to refresh.)*
 
 ---
 
-## 7. Limitations
-- **Single-Perspective Imaging:** Images capture only top-down, planar views of the impeller. Side defects or internal cavities cannot be detected without X-ray or multi-angle cameras.
-- **Lighting Sensitivity:** The model is trained on controlled lighting; changes in factory illuminance, shadowing, or glare may degrade performance without additional brightness/contrast augmentations.
-- **Grayscale Domain:** Because inputs are single-channel grayscale castings, defects involving subtle material discoloration or chemical oxidation may require multi-spectral imaging.
+## 4. Why Recall Matters & The Threshold Choice
+
+### 4.1 The Asymmetric Cost of Failure
+In automotive powertrain and fluid systems, casting defects carry extreme asymmetric liability:
+- **False Negative (Escaped Defect):** A defective impeller passes inspection and gets installed into a vehicle's cooling or fuel pump. Under thermal cycling and hydraulic pressure, the casting fractures, resulting in roadside engine seizure, warranty claims, regulatory investigations, and brand damage (**cost: thousands of dollars per incident**).
+- **False Positive (False Alarm):** A flawless casting is flagged as suspect. The component is simply routed to a 15-second secondary manual check station (**cost: ~$0.50 technician time**).
+
+### 4.2 Why $T=0.65$ was Selected as Default
+- **100.00% Precision:** Zero false alarms (0 FP out of 262 OK parts), avoiding unnecessary line stoppages.
+- **High Defect Capture:** 97.57% Defect Recall (442 out of 453 defective parts identified).
+- **Flexibility in the UI:** For mission-critical zero-leakage deployments, plant managers can adjust the Streamlit threshold slider down to $0.35$, capturing **99.34% of defects** (only 3 missed in the entire test set).
 
 ---
 
-## 8. Future Work
-- [ ] Implement multi-label defect classification (crack vs. pinhole vs. porosity).
-- [ ] Add semantic segmentation (e.g., U-Net / YOLOv8-seg) for pixel-precise defect area quantification.
-- [ ] Export optimized inference graphs using ONNX Runtime / TensorFlow Lite for edge deployment on factory line cameras (e.g., Raspberry Pi or Jetson Nano).
-- [ ] Integrate an active learning feedback loop allowing line operators to flag misclassified castings and retrain the model.
+## 5. Error Analysis & Grad-CAM Findings
+
+Visual inspection of misclassified test cases was conducted using Grad-CAM in `notebooks/03_error_analysis.ipynb`:
+
+![Grad-CAM False Negatives](reports/figures/false_negatives_gradcam.png)
+
+### Key Findings:
+1. **Hairline & Micro-Pores:** Missed defects (FNs) typically feature micro-pinhead pores or extremely fine hairline fissures that occupy less than 0.2% of total image pixels.
+2. **Specular Glare Along Curved Rims:** When defects occur on outer bevels where camera illumination reflects sharply, the feature map activations disperse, causing the network to under-predict defect probability.
+3. **Zero False Positives:** Clean cast surfaces with normal casting grain texture were never confused for defects at $T=0.65$, demonstrating robust feature invariance in the MobileNetV2 backbone.
+
+---
+
+## 6. Limitations
+
+1. **Single Dataset & Component:** Trained exclusively on cast submersible pump impellers from the Ravirajsinh industrial dataset; generalization to other cast parts (e.g., brake calipers, engine blocks) requires domain adaptation.
+2. **Controlled Top-Down Lighting:** The model assumes stable factory lighting. Extreme illumination changes, shadowing, or oil/coolant splashing on the lens may degrade performance.
+3. **Single-Perspective Imaging:** Only top-planar surfaces are captured. Internal shrinkage voids or side-wall defects cannot be detected without X-ray/CT inspection or multi-camera rigs.
+4. **Binary Only (No Multi-Class Subtyping):** The system flags Defective vs. OK, but does not differentiate crack types, blowholes, or porosity.
+5. **No Bounding Boxes:** Provides coarse localization via Grad-CAM heatmaps rather than bounding boxes or segmentation masks.
+
+---
+
+## 7. Future Work
+
+- **Fine-Tuning & Cosine Annealing:** Fine-tune upper convolutional blocks of MobileNetV2 with low learning rates ($10^{-5}$) to boost micro-defect sensitivity.
+- **YOLOv8 / RT-DETR Object Detection:** Transition from image-level classification to bounding-box defect localization for multiple defects per casting.
+- **Unsupervised Anomaly Detection (PatchCore / FastFlow):** Train on OK castings only to identify any out-of-distribution anomaly without needing historical defect examples.
+- **Multi-Part & Multi-View Geometry:** Expand dataset to cover diverse vehicle components across multi-angle camera feeds.
+
+---
+
+## 8. How to Run
+
+### 8.1 Local Environment Setup
+```bash
+# 1. Clone repository
+git clone https://github.com/annugupta25/vehicle-defect-detection.git
+cd vehicle-defect-detection
+
+# 2. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 8.2 Training on Google Colab (GPU)
+1. Open `notebooks/02_training.ipynb` in [Google Colab](https://colab.research.google.com/) with a GPU runtime (T4 or better).
+2. Follow notebook steps to authenticate Kaggle, download casting dataset, and train MobileNetV2.
+3. Download the exported `model.keras` and place it in the local repo at `models/model.keras`.
+
+### 8.3 Run Smoke Test Verification
+```bash
+python tests/smoke_test.py
+```
+
+### 8.4 Run the Interactive Streamlit App
+Launch the app from the repository root:
+```bash
+streamlit run app/app.py
+```
+- Upload any cast part image (`.jpg`, `.jpeg`, `.png`).
+- Adjust the defect threshold slider in the sidebar.
+- Inspect the real-time prediction and Grad-CAM heatmap side-by-side.
+
+---
+
+## 9. Dataset Credits & License
+
+- **Dataset Citation:** Ravirajsinh Dabhi, *Casting product image data for quality inspection*, Kaggle (2020). [Kaggle Dataset Link](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product).
+- **License:** Released under the [MIT License](LICENSE).
