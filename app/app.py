@@ -604,7 +604,61 @@ def main():
 
     with tab_about:
         st.subheader("ℹ️ About Vehicle Defect Detection")
-        st.caption("Technical system specifications, model details, and manufacturing operational scope.")
+        st.markdown(
+            "An end-to-end Computer Vision and Deep Learning quality assurance system designed for automated "
+            "optical inspection (AOI) of cast metal automotive and machinery components."
+        )
+
+        st.markdown("---")
+        col_ab1, col_ab2 = st.columns(2)
+
+        with col_ab1:
+            st.markdown("### 🧠 Model Architecture")
+            st.markdown(
+                """
+                - **Backbone:** MobileNetV2 pretrained on ImageNet (2.26M parameters, ~11 MB size).
+                - **Classifier Head:** GlobalAveragePooling2D $\\to$ Dropout ($p=0.3$) $\\to$ Dense ($1$ sigmoid output unit).
+                - **Inference Optimization:** Lightweight architecture designed for low-latency edge deployment and cloud hosting.
+                - **Label Formulation:**
+                  - Sigmoid output $\\hat{y} = P(\\text{OK})$
+                  - Defect Probability $P(\\text{Defective}) = 1.0 - \\hat{y}$
+                  - Flagged as **DEFECTIVE** when $P(\\text{Defective}) \\ge \\text{Threshold}$ (default: `0.65`).
+                """
+            )
+
+            st.markdown("### 🔬 How Grad-CAM Works")
+            st.markdown(
+                """
+                **Gradient-weighted Class Activation Mapping (Grad-CAM)** provides visual explainability:
+                1. Computes the gradient of the target class score with respect to the feature activation maps of the final convolutional layer (`Conv_1` in MobileNetV2).
+                2. Spatially pools the gradients to compute channel importance weights.
+                3. Takes a weighted linear combination followed by ReLU activation to retain features that positively correlate with the predicted class.
+                4. Renders a 2D heatmap overlaid onto the original casting image so quality technicians can inspect which visual features drove the classification.
+                """
+            )
+
+        with col_ab2:
+            st.markdown("### 📦 Dataset Specifications")
+            st.markdown(
+                """
+                - **Source:** Kaggle industrial dataset by Ravirajsinh Dabhi (*Casting product image data for quality inspection*).
+                - **Component Type:** Cast metal submersible pump impellers.
+                - **Images:** 7,348 total captures at 300×300 px resolution under uniform top-down lighting.
+                - **Partitions:**
+                  - **Train:** 6,633 images (3,758 Defective, 2,875 OK)
+                  - **Test (Holdout):** 715 images (453 Defective, 262 OK)
+                """
+            )
+
+            st.markdown("### ⚠️ Manufacturing Scope & Limitations")
+            st.markdown(
+                """
+                1. **Single Part Type:** The model is trained exclusively on submersible pump impellers; it will not generalize zero-shot to other vehicle castings (e.g. engine blocks, brake rotors).
+                2. **Controlled Lighting:** Images were captured under stable industrial illumination. Performance may degrade under intense external reflections, severe shadowing, or camera lens contamination.
+                3. **Binary Classification Only:** The system classifies parts as OK vs. Defective, but does not distinguish defect sub-types (e.g. pinholes vs. shrinkage cavities vs. cracks).
+                4. **No Bounding Boxes:** Provides coarse localization heatmaps via Grad-CAM rather than bounding box coordinates or pixel-accurate segmentation masks.
+                """
+            )
 
 
 if __name__ == "__main__":
