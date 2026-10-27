@@ -7,6 +7,7 @@ view the confidence score, and inspect the defect location via Grad-CAM heatmap.
 
 import os
 import sys
+from typing import Optional
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -126,6 +127,14 @@ def load_trained_model(model_path: str):
     except Exception as e:
         st.error(f"Error loading model from {model_path}: {e}")
         return None
+
+
+@st.cache_data(show_spinner=False)
+def load_test_predictions_csv(csv_path: str) -> Optional[pd.DataFrame]:
+    """Caches test predictions dataset in memory to accelerate tab switching."""
+    if os.path.exists(csv_path):
+        return pd.read_csv(csv_path)
+    return None
 
 
 def main():
@@ -501,7 +510,7 @@ def main():
             )
         else:
             try:
-                df_perf = pd.read_csv(test_csv_path)
+                df_perf = load_test_predictions_csv(test_csv_path)
                 
                 # Interactive threshold slider
                 perf_col1, perf_col2 = st.columns([2, 1])
