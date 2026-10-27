@@ -202,13 +202,11 @@ def main():
             if is_defective:
                 label_str = "DEFECTIVE (Reject)"
                 badge_class = "badge-def"
-                confidence = defect_prob * 100.0
-                decision_note = f"Casting defect detected (Defect Score: {defect_prob:.1%}, Threshold: {defect_threshold:.0%})."
+                decision_note = f"Casting defect detected (Defect score {defect_prob:.2f}, threshold {defect_threshold:.2f})."
             else:
                 label_str = "OK (Pass)"
                 badge_class = "badge-ok"
-                confidence = (1.0 - defect_prob) * 100.0
-                decision_note = f"Part meets quality standards (Defect Score: {defect_prob:.1%}, Threshold: {defect_threshold:.0%})."
+                decision_note = f"Part meets quality standards (Defect score {defect_prob:.2f}, threshold {defect_threshold:.2f})."
 
             # Generate Grad-CAM highlighting the decision (0: Defective, 1: OK)
             try:
@@ -236,17 +234,11 @@ def main():
                     unsafe_allow_html=True,
                 )
                 st.write("")
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    st.metric("Defect Probability", f"{defect_prob:.1%}")
-                with col_m2:
-                    st.metric("Confidence", f"{confidence:.1f}%")
-
+                st.markdown(f"#### Defect score {defect_prob:.2f} (threshold {defect_threshold:.2f})")
                 st.progress(min(max(defect_prob, 0.0), 1.0))
-                st.caption(f"Decision Boundary: `{defect_threshold:.2f}` (Sensitivity: {defect_threshold:.0%})")
 
                 st.markdown(f"**Assessment:** {decision_note}")
-                st.caption(f"Raw Model Sigmoid $P(\\text{{OK}})$: `{prediction_prob:.4f}` | Decision Boundary: `{defect_threshold:.2f}`")
+                st.caption(f"Raw Model Sigmoid $P(\\text{{OK}})$: `{prediction_prob:.4f}`")
                 
                 # Operational threshold guidance note
                 st.info(

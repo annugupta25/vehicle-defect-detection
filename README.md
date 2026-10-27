@@ -77,10 +77,9 @@ All metrics are strictly evaluated on the **unseen 715-image holdout test set** 
 
 | Model Architecture | Parameters | Test Accuracy | Defect Precision | Defect Recall | F1-Score | ROC-AUC | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Baseline Custom CNN** | ~1.2M | *—* | *—* | *—* | *—* | *—* | Benchmark architecture implemented in `src/model.py` (4 Conv blocks + BatchNorm) |
+| **Baseline Custom CNN** | ~1.2M | Not evaluated | Not evaluated | Not evaluated | Not evaluated | Not evaluated | Architecture implemented in `src/model.py` (Not evaluated) |
 | **MobileNetV2 (Transfer, T=0.50)** | **2.26M** | **98.60%** | **99.33%** | **98.45%** | **0.9889** | **0.9965** | Standard 0.50 decision boundary (7 FN, 3 FP) |
-| **MobileNetV2 (Transfer, T=0.65)** | **2.26M** | **98.46%** | **100.00%** | **97.57%** | **0.9877** | **0.9965** | **Recommended Operating Point (11 FN, 0 FP)** |
-| **MobileNetV2 (Transfer, T=0.35)** | **2.26M** | **98.46%** | **98.25%** | **99.34%** | **0.9879** | **0.9965** | Ultra-High Recall Configuration (3 FN, 8 FP) |
+| **MobileNetV2 (Transfer, T=0.65)** | **2.26M** | **98.46%** | **100.00%** | **97.57%** | **0.9877** | **0.9965** | **Chosen Operating Point (11 FN, 0 FP)** |
 
 *(Note: Per design choice, MobileNetV2 was chosen and trained as the primary production architecture due to its superior feature reuse from ImageNet and low inference latency.)*
 
@@ -107,7 +106,7 @@ In manufacturing, default $0.50$ thresholds are rarely optimal because classific
 ### 3.3 Visual Evaluation Artifacts
 
 #### Confusion Matrix & Precision-Recall Curve
-| Confusion Matrix ($T=0.65$) | Precision-Recall Curve (Holdout Test) |
+| Confusion Matrix ($T=0.50$) | Precision-Recall Curve (Holdout Test) |
 | :---: | :---: |
 | ![Confusion Matrix](reports/figures/confusion_matrix.png) | ![Precision-Recall Curve](reports/figures/precision_recall_curve.png) |
 
@@ -120,14 +119,15 @@ In manufacturing, default $0.50$ thresholds are rarely optimal because classific
 ## 4. Why Recall Matters & The Threshold Choice
 
 ### 4.1 The Asymmetric Cost of Failure
-In automotive powertrain and fluid systems, casting defects carry extreme asymmetric liability:
-- **False Negative (Escaped Defect):** A defective impeller passes inspection and gets installed into a vehicle's cooling or fuel pump. Under thermal cycling and hydraulic pressure, the casting fractures, resulting in roadside engine seizure, warranty claims, regulatory investigations, and brand damage (**cost: thousands of dollars per incident**).
-- **False Positive (False Alarm):** A flawless casting is flagged as suspect. The component is simply routed to a 15-second secondary manual check station (**cost: ~$0.50 technician time**).
+In automotive powertrain and fluid systems, casting defects carry extreme asymmetric consequences:
+- **False Negative (Escaped Defect):** A defective impeller passes inspection and gets installed into a vehicle's cooling or fluid circulation system. Under mechanical and thermal stresses, structural fracture leads to catastrophic equipment failure in service, severe safety hazards, costly warranty repairs, and brand reputation damage.
+- **False Positive (False Alarm):** A flawless casting is temporarily flagged as suspect and routed for a brief secondary manual review or re-inspection, incurring only a slight operational pause.
 
-### 4.2 Why $T=0.65$ was Selected as Default
-- **100.00% Precision:** Zero false alarms (0 FP out of 262 OK parts), avoiding unnecessary line stoppages.
-- **High Defect Capture:** 97.57% Defect Recall (442 out of 453 defective parts identified).
-- **Flexibility in the UI:** For mission-critical zero-leakage deployments, plant managers can adjust the Streamlit threshold slider down to $0.35$, capturing **99.34% of defects** (only 3 missed in the entire test set).
+### 4.2 Threshold Choice & Operational Trade-Off
+Setting the decision threshold involves an honest trade-off between defect escape risk and false alarms:
+- **$T = 0.50$ (Standard):** Yields **7 False Negatives and 3 False Positives** (Defect Recall: 98.45%, Defect Precision: 99.33%). It catches 4 more defective components than $T=0.65$, but flags 3 flawless castings incorrectly.
+- **$T = 0.65$ (Chosen Default):** Yields **11 False Negatives and 0 False Positives** (Defect Recall: 97.57%, Defect Precision: 100.00%). It completely eliminates false alarms on flawless castings, but allows 4 additional subtle defects to escape compared to $T=0.50$.
+- **Operational Flexibility:** Because operating requirements vary across factory lines, the threshold slider in `app/app.py` allows plant operators to adjust this trade-off dynamically according to current line tolerance and re-inspection bandwidth.
 
 ---
 
@@ -151,6 +151,7 @@ Visual inspection of misclassified test cases was conducted using Grad-CAM in `n
 3. **Single-Perspective Imaging:** Only top-planar surfaces are captured. Internal shrinkage voids or side-wall defects cannot be detected without X-ray/CT inspection or multi-camera rigs.
 4. **Binary Only (No Multi-Class Subtyping):** The system flags Defective vs. OK, but does not differentiate crack types, blowholes, or porosity.
 5. **No Bounding Boxes:** Provides coarse localization via Grad-CAM heatmaps rather than bounding boxes or segmentation masks.
+6. **Threshold Selection on Test Data:** Threshold was selected on the test set, so results at that threshold may be slightly optimistic.
 
 ---
 
