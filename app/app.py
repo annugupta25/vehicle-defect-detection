@@ -215,26 +215,6 @@ def main():
     st.session_state.setdefault("current_name", "")
 
     with tab_inspect:
-        # Sample selection buttons
-        st.markdown("##### 🧪 Quick Test: Try a Pre-Loaded Sample")
-        btn_cols = st.columns(6)
-        samples = [
-            ("OK Part #1", "sample_ok_1.jpeg"),
-            ("OK Part #2", "sample_ok_2.jpeg"),
-            ("OK Part #3", "sample_ok_3.jpeg"),
-            ("Defective #1", "sample_def_1.jpeg"),
-            ("Defective #2", "sample_def_2.jpeg"),
-            ("Defective #3", "sample_def_3.jpeg"),
-        ]
-        for col, (btn_label, fname) in zip(btn_cols, samples):
-            with col:
-                if st.button(btn_label, use_container_width=True):
-                    sample_file_path = os.path.join(PROJECT_ROOT, "app", "samples", fname)
-                    if os.path.exists(sample_file_path):
-                        st.session_state["current_img"] = Image.open(sample_file_path).convert("RGB")
-                        st.session_state["current_name"] = fname
-
-        st.markdown("---")
         input_col1, input_col2 = st.columns([1, 1])
         with input_col1:
             uploaded_file = st.file_uploader(
@@ -386,7 +366,7 @@ def main():
                 st.session_state["history"] = []
                 st.rerun()
         else:
-            st.caption("No inspections performed in this session yet. Upload an image or select a sample above.")
+            st.caption("No inspections performed in this session yet. Upload an image above to begin.")
 
     with tab_batch:
         st.subheader("📦 Batch Casting Inspection")
